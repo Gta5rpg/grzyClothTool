@@ -96,7 +96,7 @@
                 Value="{Binding ProgressValue}"
                 Visibility="{Binding IsBuilding, Converter={StaticResource BooleanToVisibilityConverter}}" />
 
-            <Border Grid.Column="2" >
+            <Border Grid.Column="1" >
                 <c:CustomButton 
                     HorizontalAlignment="Right"
                     x:Name="build"

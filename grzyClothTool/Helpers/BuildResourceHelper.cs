@@ -787,6 +787,7 @@ public class BuildResourceHelper
                         if (optimizedBytes == null)
                         {
                             LogHelper.Log($"Skipping corrupted texture: {t.DisplayName}", LogType.Warning);
+                            _progress?.Report(1);
                             continue;
                         }
                         RpfFile.CreateFile(folder, $"{displayName}{Path.GetExtension(t.FullFilePath)}", optimizedBytes);
@@ -796,6 +797,8 @@ public class BuildResourceHelper
                         var texBytes = File.ReadAllBytes(t.FullFilePath);
                         RpfFile.CreateFile(folder, $"{displayName}{Path.GetExtension(t.FullFilePath)}", texBytes);
                     }
+
+                    _progress?.Report(1);
                 }
             }
         }
