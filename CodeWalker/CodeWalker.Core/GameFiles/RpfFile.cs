@@ -1246,6 +1246,14 @@ namespace CodeWalker.GameFiles
                     nameswriter.Write(name);
                 }
             }
+            if (namesstream.Length > ushort.MaxValue)
+            {
+                throw new InvalidOperationException(
+                    $"RPF names data block ({namesstream.Length} bytes) exceeds the 16-bit NameOffset limit ({ushort.MaxValue}). " +
+                    $"This RPF contains too many uniquely-named entries ({AllEntries.Count}). " +
+                    "The archive must be split into multiple RPFs to avoid filename corruption.");
+            }
+
             var buf = new byte[namesstream.Length];
             namesstream.Position = 0;
             namesstream.Read(buf, 0, buf.Length);

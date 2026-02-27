@@ -510,7 +510,6 @@ public class BuildResourceHelper
         }
 
         var dlcRpf = RpfFile.CreateNew(_buildPath, "dlc.rpf", RpfEncryption.OPEN);
-        var creatureMetadatas = BuildContentXml(dlcRpf.Root);
         BuildSetupXml(dlcRpf.Root);
 
         var x64 = RpfFile.CreateDirectory(dlcRpf.Root, "x64");
@@ -520,16 +519,9 @@ public class BuildResourceHelper
         var models = RpfFile.CreateDirectory(x64, "models");
         var cdimages = RpfFile.CreateDirectory(models, "cdimages");
 
-        if (creatureMetadatas.Count > 0)
-        {
-            var animFolder = RpfFile.CreateDirectory(x64, "anim");
-            var creature = RpfFile.CreateNew(animFolder, "creaturemetadata.rpf");
-
-            foreach (var meta in creatureMetadatas)
-            {
-                RpfFile.CreateFile(creature.Root, meta.SingleplayerFileName + ".ymt", meta.Save());
-            }
-        }
+        // Track all created RPF names per gender to generate content.xml after building
+        var maleRpfNames = new List<string>();
+        var femaleRpfNames = new List<string>();
 
         int counter = 1;
         
@@ -543,7 +535,8 @@ public class BuildResourceHelper
                 var bytes = BuildYMT(SexType.male);
                 var (name, metaBytes) = BuildMeta(SexType.male);
                 RpfFile.CreateFile(dataFolder, name, metaBytes);
-                await BuildSingleplayerFilesAsync(SexType.male, bytes, counter, cdimages);
+                var rpfNames = await BuildSingleplayerFilesAsync(SexType.male, bytes, counter, cdimages);
+                maleRpfNames.AddRange(rpfNames);
             }
 
             if (selectedAddon.HasSex(SexType.female))
@@ -551,16 +544,31 @@ public class BuildResourceHelper
                 var bytes = BuildYMT(SexType.female);
                 var (name, metaBytes) = BuildMeta(SexType.female);
                 RpfFile.CreateFile(dataFolder, name, metaBytes);
-                await BuildSingleplayerFilesAsync(SexType.female, bytes, counter, cdimages);
+                var rpfNames = await BuildSingleplayerFilesAsync(SexType.female, bytes, counter, cdimages);
+                femaleRpfNames.AddRange(rpfNames);
             }
 
             counter++;
         }
 
+        // Build content.xml AFTER all RPFs are created so we know about any splits
+        var creatureMetadatas = BuildContentXml(dlcRpf.Root, maleRpfNames, femaleRpfNames);
+
+        if (creatureMetadatas.Count > 0)
+        {
+            var animFolder = RpfFile.CreateDirectory(x64, "anim");
+            var creature = RpfFile.CreateNew(animFolder, "creaturemetadata.rpf");
+
+            foreach (var meta in creatureMetadatas)
+            {
+                RpfFile.CreateFile(creature.Root, meta.SingleplayerFileName + ".ymt", meta.Save());
+            }
+        }
+
         CleanupBuildTempDirectory();
     }
 
-    private List<RbfFile> BuildContentXml(RpfDirectoryEntry dir)
+    private List<RbfFile> BuildContentXml(RpfDirectoryEntry dir, List<string> maleRpfNames, List<string> femaleRpfNames)
     {
         StringBuilder sb = new();
 
@@ -585,16 +593,21 @@ public class BuildResourceHelper
                 sb.AppendLine($"      <persistent value=\"false\" />");
                 sb.AppendLine($"    </Item>");
 
-                sb.AppendLine($"    <Item>");
-                sb.AppendLine($"      <filename>dlc_{_projectName}:/%PLATFORM%/models/cdimages/{_projectName}_male.rpf</filename>");
-                sb.AppendLine($"      <fileType>RPF_FILE</fileType>");
-                sb.AppendLine($"      <overlay value=\"false\" />");
-                sb.AppendLine($"      <disabled value=\"true\" />");
-                sb.AppendLine($"      <persistent value=\"true\" />");
-                sb.AppendLine($"    </Item>");
-
                 filesToEnable.Add($"dlc_{_projectName}:/common/data/mp_m_freemode_01_{_projectName}.meta");
-                filesToEnable.Add($"dlc_{_projectName}:/%PLATFORM%/models/cdimages/{_projectName}_male.rpf");
+
+                // Reference all male RPFs (including splits)
+                foreach (var rpfName in maleRpfNames)
+                {
+                    sb.AppendLine($"    <Item>");
+                    sb.AppendLine($"      <filename>dlc_{_projectName}:/%PLATFORM%/models/cdimages/{rpfName}</filename>");
+                    sb.AppendLine($"      <fileType>RPF_FILE</fileType>");
+                    sb.AppendLine($"      <overlay value=\"false\" />");
+                    sb.AppendLine($"      <disabled value=\"true\" />");
+                    sb.AppendLine($"      <persistent value=\"true\" />");
+                    sb.AppendLine($"    </Item>");
+
+                    filesToEnable.Add($"dlc_{_projectName}:/%PLATFORM%/models/cdimages/{rpfName}");
+                }
 
                 if (addon.HasProps())
                 {
@@ -628,16 +641,21 @@ public class BuildResourceHelper
                 sb.AppendLine($"      <persistent value=\"false\" />");
                 sb.AppendLine($"    </Item>");
 
-                sb.AppendLine($"    <Item>");
-                sb.AppendLine($"      <filename>dlc_{_projectName}:/%PLATFORM%/models/cdimages/{_projectName}_female.rpf</filename>");
-                sb.AppendLine($"      <fileType>RPF_FILE</fileType>");
-                sb.AppendLine($"      <overlay value=\"false\" />");
-                sb.AppendLine($"      <disabled value=\"true\" />");
-                sb.AppendLine($"      <persistent value=\"true\" />");
-                sb.AppendLine($"    </Item>");
-
                 filesToEnable.Add($"dlc_{_projectName}:/common/data/mp_f_freemode_01_{_projectName}.meta");
-                filesToEnable.Add($"dlc_{_projectName}:/%PLATFORM%/models/cdimages/{_projectName}_female.rpf");
+
+                // Reference all female RPFs (including splits)
+                foreach (var rpfName in femaleRpfNames)
+                {
+                    sb.AppendLine($"    <Item>");
+                    sb.AppendLine($"      <filename>dlc_{_projectName}:/%PLATFORM%/models/cdimages/{rpfName}</filename>");
+                    sb.AppendLine($"      <fileType>RPF_FILE</fileType>");
+                    sb.AppendLine($"      <overlay value=\"false\" />");
+                    sb.AppendLine($"      <disabled value=\"true\" />");
+                    sb.AppendLine($"      <persistent value=\"true\" />");
+                    sb.AppendLine($"    </Item>");
+
+                    filesToEnable.Add($"dlc_{_projectName}:/%PLATFORM%/models/cdimages/{rpfName}");
+                }
 
                 if (addon.HasProps())
                 {
@@ -646,7 +664,7 @@ public class BuildResourceHelper
                     sb.AppendLine($"      <fileType>RPF_FILE</fileType>");
                     sb.AppendLine($"      <overlay value=\"false\" />");
                     sb.AppendLine($"      <disabled value=\"true\" />");
-                sb.AppendLine($"      <persistent value=\"true\" />");
+                    sb.AppendLine($"      <persistent value=\"true\" />");
                     sb.AppendLine($"    </Item>");
 
                     filesToEnable.Add($"dlc_{_projectName}:/%PLATFORM%/models/cdimages/{_projectName}_female_p.rpf");
@@ -739,7 +757,12 @@ public class BuildResourceHelper
         RpfFile.CreateFile(dir, "setup2.xml", Encoding.UTF8.GetBytes(sb.ToString()));
     }
 
-    private async Task BuildSingleplayerFilesAsync(SexType sex, byte[] ymtBytes, int counter, RpfDirectoryEntry cdimages)
+    // Maximum names data size before splitting into a new RPF.
+    // RPF7 format stores NameOffset as uint16 (max 65535).
+    // We use 60000 as threshold to leave safety margin for directory entry names, etc.
+    private const int RPF_NAMES_SPLIT_THRESHOLD = 60000;
+
+    private async Task<List<string>> BuildSingleplayerFilesAsync(SexType sex, byte[] ymtBytes, int counter, RpfDirectoryEntry cdimages)
     {
         var pedName = GetPedName(sex);
         var projectName = GetProjectName(counter);
@@ -752,11 +775,46 @@ public class BuildResourceHelper
 
         var yddPathsDict = await BatchResaveYdd(drawables, maxParallelism: 4, progress: _progress);
 
-        var fileOperations = new List<Task>();
-
         var genderRpfName = sex == SexType.male ? "_male" : "_female";
-        var componentsRpf = RpfFile.CreateNew(cdimages, projectName + genderRpfName + ".rpf");
-        var componentsFolder = RpfFile.CreateDirectory(componentsRpf.Root, pedName + "_" + projectName);
+        var internalFolderName = pedName + "_" + projectName;
+
+        // Track cumulative unique names size for the current RPF
+        var currentNamesSize = 0;
+        var knownNames = new HashSet<string>();
+        var rpfIndex = 1;
+        var createdRpfNames = new List<string>();
+
+        // Helper to estimate name contribution (name bytes + null terminator)
+        int EstimateNameSize(string name)
+        {
+            if (knownNames.Contains(name)) return 0;
+            return System.Text.Encoding.UTF8.GetByteCount(name) + 1; // +1 for null terminator
+        }
+
+        void TrackName(string name)
+        {
+            if (knownNames.Add(name))
+            {
+                currentNamesSize += System.Text.Encoding.UTF8.GetByteCount(name) + 1;
+            }
+        }
+
+        // Create initial RPF
+        string GetRpfFileName(int index)
+        {
+            if (index == 1) return projectName + genderRpfName + ".rpf";
+            return projectName + genderRpfName + "_" + index + ".rpf";
+        }
+
+        var currentRpfFileName = GetRpfFileName(rpfIndex);
+        var componentsRpf = RpfFile.CreateNew(cdimages, currentRpfFileName);
+        var componentsFolder = RpfFile.CreateDirectory(componentsRpf.Root, internalFolderName);
+        createdRpfNames.Add(currentRpfFileName);
+
+        // Track root + directory names
+        TrackName(""); // root entry
+        TrackName(internalFolderName);
+
         RpfFile propsRpf = null;
         RpfDirectoryEntry propsFolder = null;
         if (_addon.HasProps())
@@ -765,21 +823,87 @@ public class BuildResourceHelper
             propsFolder = RpfFile.CreateDirectory(propsRpf.Root, pedName + "_p_" + projectName);
         }
 
-        RpfFile.CreateFile(componentsRpf.Root, $"{pedName}_{projectName}.ymt", ymtBytes);
+        // YMT goes into the first RPF only
+        var ymtName = $"{pedName}_{projectName}.ymt";
+        TrackName(ymtName);
+        RpfFile.CreateFile(componentsRpf.Root, ymtName, ymtBytes);
 
         foreach (var group in drawableGroups)
         {
             foreach (var d in group)
             {
-                var tempYddPath = yddPathsDict[d];
-                var drawableBytes = File.ReadAllBytes(tempYddPath);
+                // Props go to their own RPF, skip split logic for them
+                if (d.IsProp)
+                {
+                    var tempYddPath = yddPathsDict[d];
+                    var drawableBytes = File.ReadAllBytes(tempYddPath);
+                    RpfFile.CreateFile(propsFolder, $"{d.Name}{Path.GetExtension(d.FullFilePath)}", drawableBytes);
 
-                RpfDirectoryEntry folder = d.IsProp ? propsFolder : componentsFolder;            
-                RpfFile.CreateFile(folder, $"{d.Name}{Path.GetExtension(d.FullFilePath)}", drawableBytes);
+                    foreach (var t in d.Textures)
+                    {
+                        var displayName = RemoveInvalidChars(t.GetBuildName());
+                        if (t.IsOptimizedDuringBuild)
+                        {
+                            var optimizedBytes = await ImgHelper.Optimize(t);
+                            if (optimizedBytes == null)
+                            {
+                                LogHelper.Log($"Skipping corrupted texture: {t.DisplayName}", LogType.Warning);
+                                _progress?.Report(1);
+                                continue;
+                            }
+                            RpfFile.CreateFile(propsFolder, $"{displayName}{Path.GetExtension(t.FullFilePath)}", optimizedBytes);
+                        }
+                        else
+                        {
+                            var texBytes = File.ReadAllBytes(t.FullFilePath);
+                            RpfFile.CreateFile(propsFolder, $"{displayName}{Path.GetExtension(t.FullFilePath)}", texBytes);
+                        }
+                        _progress?.Report(1);
+                    }
+                    continue;
+                }
 
+                // Estimate names size for this drawable + all its textures
+                var drawableFileName = $"{d.Name}{Path.GetExtension(d.FullFilePath)}";
+                var estimatedAddition = EstimateNameSize(drawableFileName);
+                foreach (var t in d.Textures)
+                {
+                    var texDisplayName = RemoveInvalidChars(t.GetBuildName());
+                    var texFileName = $"{texDisplayName}{Path.GetExtension(t.FullFilePath)}";
+                    estimatedAddition += EstimateNameSize(texFileName);
+                }
+
+                // Check if adding this drawable would exceed the threshold
+                if (currentNamesSize + estimatedAddition > RPF_NAMES_SPLIT_THRESHOLD && currentNamesSize > 0)
+                {
+                    // Create a new split RPF
+                    rpfIndex++;
+                    currentRpfFileName = GetRpfFileName(rpfIndex);
+                    componentsRpf = RpfFile.CreateNew(cdimages, currentRpfFileName);
+                    componentsFolder = RpfFile.CreateDirectory(componentsRpf.Root, internalFolderName);
+                    createdRpfNames.Add(currentRpfFileName);
+
+                    // Reset tracking for the new RPF
+                    currentNamesSize = 0;
+                    knownNames.Clear();
+                    TrackName(""); // root
+                    TrackName(internalFolderName);
+
+                    LogHelper.Log($"RPF names limit approaching, created split archive: {currentRpfFileName}", LogType.Info);
+                }
+
+                // Add the drawable file
+                var tempPath = yddPathsDict[d];
+                var dBytes = File.ReadAllBytes(tempPath);
+                TrackName(drawableFileName);
+                RpfFile.CreateFile(componentsFolder, drawableFileName, dBytes);
+
+                // Add all textures for this drawable
                 foreach (var t in d.Textures)
                 {
                     var displayName = RemoveInvalidChars(t.GetBuildName());
+                    var texFileName = $"{displayName}{Path.GetExtension(t.FullFilePath)}";
+                    TrackName(texFileName);
 
                     if (t.IsOptimizedDuringBuild)
                     {
@@ -790,18 +914,20 @@ public class BuildResourceHelper
                             _progress?.Report(1);
                             continue;
                         }
-                        RpfFile.CreateFile(folder, $"{displayName}{Path.GetExtension(t.FullFilePath)}", optimizedBytes);
+                        RpfFile.CreateFile(componentsFolder, texFileName, optimizedBytes);
                     }
                     else
                     {
                         var texBytes = File.ReadAllBytes(t.FullFilePath);
-                        RpfFile.CreateFile(folder, $"{displayName}{Path.GetExtension(t.FullFilePath)}", texBytes);
+                        RpfFile.CreateFile(componentsFolder, texFileName, texBytes);
                     }
 
                     _progress?.Report(1);
                 }
             }
         }
+
+        return createdRpfNames;
     }
 
 
