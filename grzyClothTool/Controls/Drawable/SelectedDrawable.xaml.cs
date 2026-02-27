@@ -1128,8 +1128,7 @@ namespace grzyClothTool.Controls
 
             try
             {
-                // Copy new texture file to project assets with the texture's existing GUID
-                var newRelativePath = await FileHelper.CopyToProjectAssetsAsync(file.FileName, selectedTexture.Id.ToString());
+                var newRelativePath = await FileHelper.CopyToProjectAssetsWithReplaceAsync(file.FileName, selectedTexture.Id.ToString());
                 
                 // create new texture with relative path
                 var newTexture = new GTexture(selectedTexture.Id, newRelativePath, SelectedDraw.TypeNumeric, SelectedDraw.Number, selectedTexture.TxtNumber, SelectedDraw.HasSkin, SelectedDraw.IsProp);

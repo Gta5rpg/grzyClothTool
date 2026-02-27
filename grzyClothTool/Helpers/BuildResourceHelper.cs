@@ -46,6 +46,7 @@ public class BuildResourceHelper
         shouldUseNumber = MainWindow.AddonManager.Addons.Count > 1;
 
         var buildParentDir = Path.GetDirectoryName(_baseBuildPath);
+        Directory.CreateDirectory(_baseBuildPath);
         _buildTempFolderPath = Path.Combine(buildParentDir, "buildtemp");
         Directory.CreateDirectory(_buildTempFolderPath);
     }

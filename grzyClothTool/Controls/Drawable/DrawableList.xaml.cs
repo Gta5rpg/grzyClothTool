@@ -542,8 +542,7 @@ namespace grzyClothTool.Controls
             {
                 try
                 {
-                    // Copy new file to project assets with the drawable's existing GUID
-                    var newRelativePath = await FileHelper.CopyToProjectAssetsAsync(files.FileName, drawable.Id.ToString());
+                    var newRelativePath = await FileHelper.CopyToProjectAssetsWithReplaceAsync(files.FileName, drawable.Id.ToString());
                     drawable.FilePath = newRelativePath;
                     SaveHelper.SetUnsavedChanges(true);
 

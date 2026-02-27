@@ -76,10 +76,6 @@ namespace grzyClothTool
 
             Dispatcher.BeginInvoke((Action)(async () =>
             {
-#if !DEBUG
-                App.splashScreen.AddMessage("Checking for updates...");
-                await UpdateHelper.CheckForUpdates();
-#endif
                 App.splashScreen.AddMessage("Starting app");
 
                 while (App.splashScreen.MessageQueueCount > 0)
